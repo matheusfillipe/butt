@@ -480,6 +480,13 @@ int snd_callback(const void *input, void *output, unsigned long frameCount, cons
         }
     }
 
+    // Feed the live monitor from this realtime input thread (regular, low-jitter) rather than the
+    // mixer thread. This is a real-time tap of the captured input; the stream path below is
+    // untouched and keeps its own full-quality buffering.
+    if (monitor_running) {
+        rb_write(&monitor_rb, (char *)pa_pcm_buf, (int)(frameCount * cfg.audio.channel * sizeof(float)));
+    }
+
     /*
     samplerate_out = cfg.audio.samplerate;
 
@@ -744,11 +751,6 @@ void *snd_mixer_thread(void *data)
                 reset_streaming_compressor = false;
             }
             streaming_dsp->processSamples(stream_buf);
-        }
-
-        // Feed the local monitor with the exact post-DSP stream mix so the user can hear what is sent
-        if (monitor_running) {
-            rb_write(&monitor_rb, (char *)stream_buf, frame_size);
         }
 
         if (streaming) {
@@ -1427,17 +1429,14 @@ static int snd_monitor_callback(const void *input, void *output, unsigned long f
     unsigned int want = frameCount * cfg.audio.channel * sizeof(float);
 
     if (monitor_running && want > 0) {
-        // Bound monitor latency: the capture and playback devices run on independent clocks, so
-        // the buffer would otherwise drift toward full (hundreds of ms). Drop any backlog beyond
-        // the target so monitoring stays close to real time.
+        // Bound monitor latency: drop any backlog beyond the target so monitoring stays close to
+        // real time. The realtime input thread delivers regular buffer_ms-sized bursts, so one
+        // burst of cushion (plus one output period) is enough to avoid underruns. This is the
+        // latency floor; lower it by reducing butt's "Buffer (ms)" in Audio settings.
         unsigned int target = (cfg.mixer.monitor_latency_ms * cfg.audio.samplerate / 1000)
                               * cfg.audio.channel * sizeof(float);
-
-        // The mixer feeds in buffer_ms-sized bursts, so the buffer must keep at least ~1.5 bursts
-        // of cushion or it underruns between bursts (audible skipping). This is the real latency
-        // floor; lower it by reducing butt's "Buffer (ms)" in Audio settings.
         unsigned int burst = pa_frames * cfg.audio.channel * sizeof(float);
-        unsigned int floor = burst + burst / 2 + want;
+        unsigned int floor = 2 * burst + want;
         if (target < floor) {
             target = floor;
         }
