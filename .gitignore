@@ -11,3 +11,12 @@ config.status
 autom4te.cache/
 stamp-h1
 *~
+
+# configure-generated (regenerate with ./configure)
+config.h
+/Makefile
+/src/Makefile
+/po/Makefile
+/po/Makefile.in
+/po/POTFILES
+src/FLTK/.dirstamp

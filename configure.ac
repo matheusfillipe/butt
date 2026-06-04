@@ -170,11 +170,15 @@ case "${host_os}" in
         CPPFLAGS="$CPPFLAGS -x objective-c++"
         LIBS="$LIBS -framework AVFoundation -lintl -framework ScriptingBridge"
         LDFLAGS="$LDFLAGS -rpath /usr/local/lib"
-        
-        AS_IF([test "x$client_only" != "xyes"], 
+
+        AC_ARG_ENABLE([webrtc],
+        AS_HELP_STRING([--enable-webrtc], [Enable WebRTC support]),
         [
-            AC_CHECK_LIB([datachannel], [rtcCreatePeerConnection], [],
-	        [AC_MSG_ERROR([**** Could not find datachannel      ****])])
+            AS_IF([test "x$client_only" != "xyes"],
+            [
+                AC_CHECK_LIB([datachannel], [rtcCreatePeerConnection], [],
+	            [AC_MSG_ERROR([**** Could not find datachannel      ****])])
+            ])
         ])
         ;;
     freebsd*)
