@@ -65,10 +65,10 @@ int ic_connect(void)
     int retval;
     int tries = 2;
     int opus_supported = 0;
-    char auth[150];
-    char b64_auth[200];
+    char auth[8400];
+    char b64_auth[12000];
     char recv_buf[1000];
-    char send_buf[2048];
+    char send_buf[16384];
     char msg[256];
     char *b64_enc;
     char *http_retval;
@@ -490,8 +490,8 @@ int ic_update_song(char *song_name)
 {
     int ret;
     int web_socket;
-    char send_buf[1024];
-    char auth[150];
+    char send_buf[16384];
+    char auth[8400];
     char *song_buf;
     char *mount;
     char *b64_enc;

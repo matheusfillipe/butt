@@ -198,8 +198,11 @@ int cfg_write_file(char *path)
         fprintf(cfg_fd, "dev2_name = %s\n\n", cfg.audio.dev2_name);
     }
     else {
-        fprintf(cfg_fd, "dev2_name = \n\n");
+        fprintf(cfg_fd, "dev2_name = \n");
     }
+
+    fprintf(cfg_fd, "monitor_device = %d\n", cfg.audio.monitor_dev_num);
+    fprintf(cfg_fd, "monitor_dev_name = %s\n\n", cfg.audio.monitor_dev_name != NULL ? cfg.audio.monitor_dev_name : "");
 
     fprintf(cfg_fd,
             "[record]\n"
@@ -262,9 +265,11 @@ int cfg_write_file(char *path)
             "secondary_device_muted = %d\n"
             "streaming_gain = %f\n"
             "recording_gain = %f\n"
-            "cross_fader = %f\n\n",
+            "cross_fader = %f\n"
+            "monitor_enabled = %d\n"
+            "monitor_gain = %f\n\n",
             cfg.mixer.primary_device_gain, cfg.mixer.primary_device_muted, cfg.mixer.secondary_device_gain, cfg.mixer.secondary_device_muted,
-            cfg.mixer.streaming_gain, cfg.mixer.recording_gain, cfg.mixer.cross_fader);
+            cfg.mixer.streaming_gain, cfg.mixer.recording_gain, cfg.mixer.cross_fader, cfg.mixer.monitor_enabled, cfg.mixer.monitor_gain);
 
     fprintf(cfg_fd,
             "[gui]\n"
@@ -576,6 +581,21 @@ int cfg_set_values(char *path)
     cfg.main.log_file = cfg_get_str("main", "log_file", NULL);
     cfg.main.ic_charset = cfg_get_str("main", "ic_charset", NULL);
     cfg.audio.pcm_list = snd_get_devices(&cfg.audio.dev_count);
+    cfg.audio.mon_pcm_list = snd_get_output_devices(&cfg.audio.mon_dev_count);
+    cfg.audio.monitor_dev_name = cfg_get_str("audio", "monitor_dev_name", "");
+    cfg.audio.monitor_dev_num = cfg_get_int("audio", "monitor_device", 0);
+    // Output device order can change between sessions, so prefer matching by name
+    if (cfg.audio.monitor_dev_name != NULL && strlen(cfg.audio.monitor_dev_name) > 0) {
+        for (int i = 0; i < cfg.audio.mon_dev_count; i++) {
+            if (!strcmp(cfg.audio.monitor_dev_name, cfg.audio.mon_pcm_list[i]->name)) {
+                cfg.audio.monitor_dev_num = i;
+                break;
+            }
+        }
+    }
+    if (cfg.audio.monitor_dev_num < 0 || cfg.audio.monitor_dev_num >= cfg.audio.mon_dev_count) {
+        cfg.audio.monitor_dev_num = 0;
+    }
     cfg.audio.dev_num = cfg_get_int("audio", "device", 0);
     cfg.audio.dev2_num = cfg_get_int("audio", "device2", -1);
     cfg.audio.dev_name = cfg_get_str("audio", "dev_name", _("Default PCM device (default)"));
@@ -902,6 +922,8 @@ int cfg_set_values(char *path)
     cfg.mixer.streaming_gain = cfg_get_float("mixer", "streaming_gain", 1.0);
     cfg.mixer.recording_gain = cfg_get_float("mixer", "recording_gain", 1.0);
     cfg.mixer.cross_fader = cfg_get_float("mixer", "cross_fader", 0.0);
+    cfg.mixer.monitor_enabled = cfg_get_int("mixer", "monitor_enabled", 0);
+    cfg.mixer.monitor_gain = cfg_get_float("mixer", "monitor_gain", 1.0);
 
     // DSP
     cfg.dsp.equalizer_stream = cfg_get_int("dsp", "equalizer", 0);

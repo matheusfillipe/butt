@@ -200,6 +200,10 @@ typedef struct {
         char *dev2_name;
         int dev_remember; // Remember device by ID or Name
         snd_dev_t **pcm_list;
+        snd_dev_t **mon_pcm_list; // Output devices for stream monitoring
+        int mon_dev_count;
+        int monitor_dev_num;
+        char *monitor_dev_name;
         int samplerate;
         int resolution;
         int channel;
@@ -269,6 +273,8 @@ typedef struct {
         double cross_fader;
         float primary_X_fader;
         float secondary_X_fader;
+        int monitor_enabled;
+        double monitor_gain;
     } mixer;
 
     struct {

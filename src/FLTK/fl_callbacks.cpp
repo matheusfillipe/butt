@@ -2785,6 +2785,41 @@ void choice_cfg_dev2_cb(void)
     print_info(info_buf, 1);
 }
 
+void choice_cfg_monitor_dev_cb(void)
+{
+    int num = fl_g->choice_cfg_monitor_dev->value();
+    if (num < 0 || num >= cfg.audio.mon_dev_count) {
+        return;
+    }
+
+    cfg.audio.monitor_dev_num = num;
+    cfg.audio.monitor_dev_name = (char *)realloc(cfg.audio.monitor_dev_name, strlen(cfg.audio.mon_pcm_list[num]->name) + 1);
+    strcpy(cfg.audio.monitor_dev_name, cfg.audio.mon_pcm_list[num]->name);
+
+    // Switch the live monitor to the newly selected device
+    if (cfg.mixer.monitor_enabled) {
+        snd_monitor_stop();
+        snd_monitor_start();
+    }
+}
+
+void check_cfg_monitor_cb(void)
+{
+    cfg.mixer.monitor_enabled = fl_g->check_cfg_monitor->value();
+
+    if (cfg.mixer.monitor_enabled) {
+        snd_monitor_start();
+    }
+    else {
+        snd_monitor_stop();
+    }
+}
+
+void slider_cfg_monitor_gain_cb(void)
+{
+    cfg.mixer.monitor_gain = fl_g->slider_cfg_monitor_gain->value();
+}
+
 void button_cfg_rescan_devices_cb(void)
 {
     if (connected || recording) {
@@ -2813,6 +2848,19 @@ void button_cfg_rescan_devices_cb(void)
     cfg.audio.pcm_list = snd_get_devices(&dev_count);
     cfg.audio.dev_count = dev_count;
 
+    // Rebuild the monitor output device list with fresh device IDs
+    snd_free_device_list(cfg.audio.mon_pcm_list, cfg.audio.mon_dev_count);
+    cfg.audio.mon_pcm_list = snd_get_output_devices(&cfg.audio.mon_dev_count);
+    cfg.audio.monitor_dev_num = 0;
+    if (cfg.audio.monitor_dev_name != NULL) {
+        for (int i = 0; i < cfg.audio.mon_dev_count; i++) {
+            if (!strcmp(cfg.audio.monitor_dev_name, cfg.audio.mon_pcm_list[i]->name)) {
+                cfg.audio.monitor_dev_num = i;
+                break;
+            }
+        }
+    }
+
     fl_g->choice_cfg_dev->clear();
     fl_g->choice_cfg_dev2->clear();
     fl_g->choice_cfg_dev->textsize(14);
@@ -2828,6 +2876,12 @@ void button_cfg_rescan_devices_cb(void)
         fl_g->choice_cfg_dev2->add(dev_name);
         free(dev_name);
     }
+
+    fl_g->choice_cfg_monitor_dev->clear();
+    for (int i = 0; i < cfg.audio.mon_dev_count; i++) {
+        fl_g->choice_cfg_monitor_dev->add(cfg.audio.mon_pcm_list[i]->name);
+    }
+    fl_g->choice_cfg_monitor_dev->value(cfg.audio.monitor_dev_num);
 
     cfg.audio.dev_num = snd_get_dev_num_by_name(current_device);
     free(current_device);

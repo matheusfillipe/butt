@@ -23,6 +23,7 @@
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Check_Button.H>
+#include <FL/Fl_Value_Slider.H>
 #include <FL/filename.H>
 #include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Value_Input.H>
@@ -229,6 +230,10 @@ public:
 private:
   inline void cb_choice_cfg_dev2_i(Fl_Choice*, void*);
   static void cb_choice_cfg_dev2(Fl_Choice*, void*);
+public:
+  Fl_Choice *choice_cfg_monitor_dev;
+  Fl_Check_Button *check_cfg_monitor;
+  Fl_Value_Slider *slider_cfg_monitor_gain;
 public:
   Fl_Choice *choice_cfg_left_channel2;
 private:

@@ -87,6 +87,9 @@ ringbuf_t rec_rb;
 ringbuf_t stream_rb;
 ringbuf_t pa_pcm_rb;
 ringbuf_t pa_pcm2_rb;
+ringbuf_t monitor_rb;     // Holds the stream mix for local monitoring playback
+int monitor_rb_inited = 0;
+volatile int monitor_running = 0;
 
 SRC_STATE *srconv_state_opus_stream = NULL;
 SRC_STATE *srconv_state_opus_record = NULL;
@@ -106,6 +109,7 @@ pthread_t mixer_thread_joinable;
 
 PaStream *stream;
 PaStream *stream2;
+PaStream *monitor_stream = NULL;
 
 DSPEffects *streaming_dsp = NULL;
 DSPEffects *recording_dsp = NULL;
@@ -237,6 +241,8 @@ int snd_open_streams(void)
     rb_init(&rec_rb, 16 * framepacket_size * sizeof(float));
     rb_init(&stream_rb, 16 * framepacket_size * sizeof(float));
     rb_init(&pa_pcm_rb, 16 * framepacket_size * sizeof(float));
+    rb_init(&monitor_rb, 16 * framepacket_size * sizeof(float));
+    monitor_rb_inited = 1;
 
     pa_params.device = pa_dev_id;
     pa_params.channelCount = pa_dev_info->maxInputChannels;
@@ -401,6 +407,10 @@ int snd_open_streams(void)
 
     snd_init_dsp();
     snd_start_mixer_thread();
+
+    if (cfg.mixer.monitor_enabled) {
+        snd_monitor_start();
+    }
 
     g_vu_meter_timer_is_active = 1;
     Fl::add_timeout(0.01, &vu_meter_timer);
@@ -735,6 +745,12 @@ void *snd_mixer_thread(void *data)
             }
             streaming_dsp->processSamples(stream_buf);
         }
+
+        // Feed the local monitor with the exact post-DSP stream mix so the user can hear what is sent
+        if (monitor_running) {
+            rb_write(&monitor_rb, (char *)stream_buf, frame_size);
+        }
+
         if (streaming) {
             if ((!strcmp(cfg.audio.codec, "opus")) && (cfg.audio.samplerate != 48000)) {
                 srconv_opus_stream.data_in = stream_buf;
@@ -1344,6 +1360,157 @@ void snd_free_device_list(snd_dev_t **dev_list, int dev_count)
     free(dev_list);
 }
 
+// Enumerate audio devices that have output channels, for the stream monitor.
+snd_dev_t **snd_get_output_devices(int *dev_count)
+{
+    int available_devices, dev_num;
+    const PaDeviceInfo *p_di;
+
+    snd_dev_t **dev_list = (snd_dev_t **)malloc(SND_MAX_DEVICES * sizeof(snd_dev_t *));
+    for (int i = 0; i < SND_MAX_DEVICES; i++) {
+        dev_list[i] = (snd_dev_t *)malloc(sizeof(snd_dev_t));
+    }
+
+    dev_num = 0;
+    if (Pa_GetDefaultOutputDevice() != paNoDevice) {
+        const PaDeviceInfo *d = Pa_GetDeviceInfo(Pa_GetDefaultOutputDevice());
+        dev_list[dev_num]->name = (char *)malloc(strlen(_("Default output device (default)")) + 1);
+        strcpy(dev_list[dev_num]->name, _("Default output device (default)"));
+        dev_list[dev_num]->dev_id = Pa_GetDefaultOutputDevice();
+        dev_list[dev_num]->num_of_channels = (d != NULL) ? d->maxOutputChannels : 2;
+        dev_list[dev_num]->is_asio = 0;
+        dev_num = 1;
+    }
+
+    available_devices = Pa_GetDeviceCount();
+    for (int i = 0; i < available_devices && i < SND_MAX_DEVICES - 1; i++) {
+        p_di = Pa_GetDeviceInfo(i);
+        if (p_di == NULL) {
+            continue;
+        }
+        if (p_di->maxOutputChannels <= 0) {
+            continue;
+        }
+
+        const PaHostApiInfo *pa_hostapi = Pa_GetHostApiInfo(p_di->hostApi);
+        dev_list[dev_num]->name = (char *)malloc(strlen(p_di->name) + strlen(pa_hostapi->name) + 10);
+        snprintf(dev_list[dev_num]->name, strlen(p_di->name) + strlen(pa_hostapi->name) + 10, "%s [%s]", p_di->name, pa_hostapi->name);
+        dev_list[dev_num]->dev_id = i;
+        dev_list[dev_num]->num_of_channels = p_di->maxOutputChannels;
+        dev_list[dev_num]->is_asio = pa_hostapi->type == paASIO;
+
+        // Replace characters that have a special meaning to FLTK
+        strrpl(&dev_list[dev_num]->name, (char *)"\\", (char *)" ", MODE_ALL); // Must come first
+        strrpl(&dev_list[dev_num]->name, (char *)"/", (char *)"\\/", MODE_ALL);
+        strrpl(&dev_list[dev_num]->name, (char *)"|", (char *)" ", MODE_ALL);
+        strrpl(&dev_list[dev_num]->name, (char *)"\t", (char *)" ", MODE_ALL);
+        strrpl(&dev_list[dev_num]->name, (char *)"_", (char *)" ", MODE_ALL);
+        strrpl(&dev_list[dev_num]->name, (char *)"&", (char *)"+", MODE_ALL);
+
+        dev_num++;
+    }
+
+    *dev_count = dev_num;
+    return dev_list;
+}
+
+// PortAudio output callback: drains the monitor ring buffer, applies gain, silences on underrun.
+static int snd_monitor_callback(const void *input, void *output, unsigned long frameCount,
+                                const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *userData)
+{
+    (void)input;
+    (void)timeInfo;
+    (void)statusFlags;
+    (void)userData;
+
+    float *out = (float *)output;
+    unsigned int want = frameCount * cfg.audio.channel * sizeof(float);
+
+    if (monitor_running && (unsigned int)rb_filled(&monitor_rb) >= want) {
+        rb_read_len(&monitor_rb, (char *)out, want);
+        double g = cfg.mixer.monitor_gain;
+        if (g != 1.0) {
+            unsigned int n = frameCount * cfg.audio.channel;
+            for (unsigned int i = 0; i < n; i++) {
+                out[i] *= g;
+            }
+        }
+    }
+    else {
+        memset(out, 0, want);
+    }
+
+    return paContinue;
+}
+
+void snd_monitor_stop(void)
+{
+    monitor_running = 0;
+    if (monitor_stream != NULL) {
+        Pa_AbortStream(monitor_stream);
+        Pa_CloseStream(monitor_stream);
+        monitor_stream = NULL;
+    }
+}
+
+void snd_monitor_start(void)
+{
+    PaStreamParameters op;
+    const PaDeviceInfo *di;
+    PaError err;
+    int dev_id;
+    char info_buf[256];
+
+    if (monitor_stream != NULL) { // already running
+        return;
+    }
+    if (!monitor_rb_inited) {
+        return;
+    }
+    if (cfg.audio.mon_pcm_list == NULL || cfg.audio.mon_dev_count <= 0) {
+        print_info(_("No audio output device available for monitoring"), 1);
+        return;
+    }
+    if (cfg.audio.monitor_dev_num < 0 || cfg.audio.monitor_dev_num >= cfg.audio.mon_dev_count) {
+        cfg.audio.monitor_dev_num = 0;
+    }
+
+    dev_id = cfg.audio.mon_pcm_list[cfg.audio.monitor_dev_num]->dev_id;
+    di = Pa_GetDeviceInfo(dev_id);
+    if (di == NULL) {
+        return;
+    }
+    if (di->maxOutputChannels < cfg.audio.channel) {
+        print_info(_("Monitor device has too few output channels"), 1);
+        return;
+    }
+
+    op.device = dev_id;
+    op.channelCount = cfg.audio.channel;
+    op.sampleFormat = paFloat32;
+    op.suggestedLatency = di->defaultLowOutputLatency;
+    op.hostApiSpecificStreamInfo = NULL;
+
+    rb_clear(&monitor_rb);
+
+    err = Pa_OpenStream(&monitor_stream, NULL, &op, cfg.audio.samplerate, pa_frames, paClipOff, snd_monitor_callback, NULL);
+    if (err != paNoError) {
+        snprintf(info_buf, sizeof(info_buf), _("Could not open monitor device: %s"), Pa_GetErrorText(err));
+        print_info(info_buf, 1);
+        monitor_stream = NULL;
+        return;
+    }
+
+    err = Pa_StartStream(monitor_stream);
+    if (err != paNoError) {
+        Pa_CloseStream(monitor_stream);
+        monitor_stream = NULL;
+        return;
+    }
+
+    monitor_running = 1;
+}
+
 snd_dev_t **snd_get_devices(int *dev_count)
 {
     int available_devices, sr_count, dev_num;
@@ -1570,6 +1737,8 @@ int snd_get_dev_num_by_name(char *name)
 
 void snd_close_streams(void)
 {
+    snd_monitor_stop();
+
     int stream_is_active = Pa_IsStreamActive(stream);
     int stream2_is_active = Pa_IsStreamActive(stream2);
 
@@ -1602,6 +1771,8 @@ void snd_close_streams(void)
         rb_free(&pa_pcm_rb);
         rb_free(&rec_rb);
         rb_free(&stream_rb);
+        rb_free(&monitor_rb);
+        monitor_rb_inited = 0;
     }
 
     if (stream2_is_active == 1) {

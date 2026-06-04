@@ -4025,6 +4025,11 @@ void flgui::cb_Close3(Fl_Button* o, void* v) {
   ((flgui*)(o->parent()->user_data()))->cb_Close3_i(o,v);
 }
 
+// Monitor controls forward to the global callbacks (which use the global fl_g instance)
+static void cb_monitor_dev(Fl_Widget*, void*) { choice_cfg_monitor_dev_cb(); }
+static void cb_monitor_enable(Fl_Widget*, void*) { check_cfg_monitor_cb(); }
+static void cb_monitor_gain(Fl_Widget*, void*) { slider_cfg_monitor_gain_cb(); }
+
 flgui::flgui() {
   { window_main = new Fl_My_Double_Window(430, 395);
     window_main->box(FL_FLAT_BOX);
@@ -4549,6 +4554,31 @@ flgui::flgui() {
           { Fl_Box* o = new Fl_Box(318, 525, 25, 17, gettext("dB"));
             o->align(Fl_Align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE));
           } // Fl_Box* o
+          o->end();
+        } // Fl_Group* o
+        { Fl_Group* o = new Fl_Group(50, 558, 326, 82, gettext("Monitor"));
+          o->box(FL_ENGRAVED_FRAME);
+          o->align(Fl_Align(FL_ALIGN_TOP_LEFT));
+          { choice_cfg_monitor_dev = new Fl_Choice(60, 582, 205, 22, gettext("Monitor output device (hear your stream)"));
+            choice_cfg_monitor_dev->tooltip(gettext("Play the outgoing stream mix on this output device. Use headphones to avoid feedback."));
+            choice_cfg_monitor_dev->down_box(FL_FLAT_BOX);
+            choice_cfg_monitor_dev->callback((Fl_Callback*)cb_monitor_dev);
+            choice_cfg_monitor_dev->align(Fl_Align(FL_ALIGN_TOP_LEFT));
+          } // Fl_Choice* choice_cfg_monitor_dev
+          { check_cfg_monitor = new Fl_Check_Button(278, 583, 85, 20, gettext("Enable"));
+            check_cfg_monitor->tooltip(gettext("Enable local monitoring of the outgoing stream"));
+            check_cfg_monitor->down_box(FL_DOWN_BOX);
+            check_cfg_monitor->callback((Fl_Callback*)cb_monitor_enable);
+          } // Fl_Check_Button* check_cfg_monitor
+          { slider_cfg_monitor_gain = new Fl_Value_Slider(60, 618, 300, 18, gettext("Volume"));
+            slider_cfg_monitor_gain->type(FL_HORIZONTAL);
+            slider_cfg_monitor_gain->minimum(0);
+            slider_cfg_monitor_gain->maximum(2);
+            slider_cfg_monitor_gain->step(0.01);
+            slider_cfg_monitor_gain->value(1);
+            slider_cfg_monitor_gain->callback((Fl_Callback*)cb_monitor_gain);
+            slider_cfg_monitor_gain->align(Fl_Align(FL_ALIGN_TOP_LEFT));
+          } // Fl_Value_Slider* slider_cfg_monitor_gain
           o->end();
         } // Fl_Group* o
         o->end();

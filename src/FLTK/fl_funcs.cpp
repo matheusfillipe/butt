@@ -238,6 +238,20 @@ void fill_cfg_widgets(void)
     fl_g->choice_cfg_dev->value(cfg.audio.dev_num);
     fl_g->choice_cfg_dev2->value(cfg.audio.dev2_num + 1);
 
+    // Monitor output device list
+    fl_g->choice_cfg_monitor_dev->clear();
+    for (i = 0; i < cfg.audio.mon_dev_count; i++) {
+        fl_g->choice_cfg_monitor_dev->add(cfg.audio.mon_pcm_list[i]->name);
+    }
+    if (cfg.audio.monitor_dev_num >= 0 && cfg.audio.monitor_dev_num < cfg.audio.mon_dev_count) {
+        fl_g->choice_cfg_monitor_dev->value(cfg.audio.monitor_dev_num);
+    }
+    else if (cfg.audio.mon_dev_count > 0) {
+        fl_g->choice_cfg_monitor_dev->value(0);
+    }
+    fl_g->check_cfg_monitor->value(cfg.mixer.monitor_enabled);
+    fl_g->slider_cfg_monitor_gain->value(cfg.mixer.monitor_gain);
+
     fl_g->choice_cfg_act_srv->clear();
     fl_g->choice_cfg_act_srv->redraw();
     for (i = 0; i < cfg.main.num_of_srv; i++) {
