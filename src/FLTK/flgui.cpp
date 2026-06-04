@@ -4029,6 +4029,7 @@ void flgui::cb_Close3(Fl_Button* o, void* v) {
 static void cb_monitor_dev(Fl_Widget*, void*) { choice_cfg_monitor_dev_cb(); }
 static void cb_monitor_enable(Fl_Widget*, void*) { check_cfg_monitor_cb(); }
 static void cb_monitor_gain(Fl_Widget*, void*) { slider_cfg_monitor_gain_cb(); }
+static void cb_monitor_latency(Fl_Widget*, void*) { input_cfg_monitor_latency_cb(); }
 
 flgui::flgui() {
   { window_main = new Fl_My_Double_Window(430, 395);
@@ -4570,7 +4571,7 @@ flgui::flgui() {
             check_cfg_monitor->down_box(FL_DOWN_BOX);
             check_cfg_monitor->callback((Fl_Callback*)cb_monitor_enable);
           } // Fl_Check_Button* check_cfg_monitor
-          { slider_cfg_monitor_gain = new Fl_Value_Slider(60, 618, 300, 18, gettext("Volume"));
+          { slider_cfg_monitor_gain = new Fl_Value_Slider(60, 618, 175, 18, gettext("Volume"));
             slider_cfg_monitor_gain->type(FL_HORIZONTAL);
             slider_cfg_monitor_gain->minimum(0);
             slider_cfg_monitor_gain->maximum(2);
@@ -4579,6 +4580,15 @@ flgui::flgui() {
             slider_cfg_monitor_gain->callback((Fl_Callback*)cb_monitor_gain);
             slider_cfg_monitor_gain->align(Fl_Align(FL_ALIGN_TOP_LEFT));
           } // Fl_Value_Slider* slider_cfg_monitor_gain
+          { input_cfg_monitor_latency = new Fl_Value_Input(305, 617, 55, 19, gettext("Latency (ms)"));
+            input_cfg_monitor_latency->tooltip(gettext("Lower = less delay but higher chance of audio dropouts. Does not affect the stream."));
+            input_cfg_monitor_latency->minimum(10);
+            input_cfg_monitor_latency->maximum(1000);
+            input_cfg_monitor_latency->step(10);
+            input_cfg_monitor_latency->value(60);
+            input_cfg_monitor_latency->callback((Fl_Callback*)cb_monitor_latency);
+            input_cfg_monitor_latency->align(Fl_Align(FL_ALIGN_TOP_LEFT));
+          } // Fl_Value_Input* input_cfg_monitor_latency
           o->end();
         } // Fl_Group* o
         o->end();

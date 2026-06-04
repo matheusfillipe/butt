@@ -2820,6 +2820,15 @@ void slider_cfg_monitor_gain_cb(void)
     cfg.mixer.monitor_gain = fl_g->slider_cfg_monitor_gain->value();
 }
 
+void input_cfg_monitor_latency_cb(void)
+{
+    int ms = (int)fl_g->input_cfg_monitor_latency->value();
+    if (ms < 10) {
+        ms = 10;
+    }
+    cfg.mixer.monitor_latency_ms = ms;
+}
+
 void button_cfg_rescan_devices_cb(void)
 {
     if (connected || recording) {

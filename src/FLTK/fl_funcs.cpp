@@ -251,6 +251,7 @@ void fill_cfg_widgets(void)
     }
     fl_g->check_cfg_monitor->value(cfg.mixer.monitor_enabled);
     fl_g->slider_cfg_monitor_gain->value(cfg.mixer.monitor_gain);
+    fl_g->input_cfg_monitor_latency->value(cfg.mixer.monitor_latency_ms);
 
     fl_g->choice_cfg_act_srv->clear();
     fl_g->choice_cfg_act_srv->redraw();

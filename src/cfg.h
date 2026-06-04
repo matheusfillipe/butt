@@ -275,6 +275,7 @@ typedef struct {
         float secondary_X_fader;
         int monitor_enabled;
         double monitor_gain;
+        int monitor_latency_ms;
     } mixer;
 
     struct {

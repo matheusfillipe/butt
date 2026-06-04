@@ -91,6 +91,7 @@ void choice_cfg_dev2_cb(void);
 void choice_cfg_monitor_dev_cb(void);
 void check_cfg_monitor_cb(void);
 void slider_cfg_monitor_gain_cb(void);
+void input_cfg_monitor_latency_cb(void);
 void button_cfg_rescan_devices_cb(void);
 void radio_cfg_ID_cb(void);
 void radio_cfg_name_cb(void);

@@ -267,9 +267,11 @@ int cfg_write_file(char *path)
             "recording_gain = %f\n"
             "cross_fader = %f\n"
             "monitor_enabled = %d\n"
-            "monitor_gain = %f\n\n",
+            "monitor_gain = %f\n"
+            "monitor_latency_ms = %d\n\n",
             cfg.mixer.primary_device_gain, cfg.mixer.primary_device_muted, cfg.mixer.secondary_device_gain, cfg.mixer.secondary_device_muted,
-            cfg.mixer.streaming_gain, cfg.mixer.recording_gain, cfg.mixer.cross_fader, cfg.mixer.monitor_enabled, cfg.mixer.monitor_gain);
+            cfg.mixer.streaming_gain, cfg.mixer.recording_gain, cfg.mixer.cross_fader, cfg.mixer.monitor_enabled, cfg.mixer.monitor_gain,
+            cfg.mixer.monitor_latency_ms);
 
     fprintf(cfg_fd,
             "[gui]\n"
@@ -924,6 +926,10 @@ int cfg_set_values(char *path)
     cfg.mixer.cross_fader = cfg_get_float("mixer", "cross_fader", 0.0);
     cfg.mixer.monitor_enabled = cfg_get_int("mixer", "monitor_enabled", 0);
     cfg.mixer.monitor_gain = cfg_get_float("mixer", "monitor_gain", 1.0);
+    cfg.mixer.monitor_latency_ms = cfg_get_int("mixer", "monitor_latency_ms", 60);
+    if (cfg.mixer.monitor_latency_ms < 10) {
+        cfg.mixer.monitor_latency_ms = 10;
+    }
 
     // DSP
     cfg.dsp.equalizer_stream = cfg_get_int("dsp", "equalizer", 0);

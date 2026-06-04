@@ -234,6 +234,7 @@ public:
   Fl_Choice *choice_cfg_monitor_dev;
   Fl_Check_Button *check_cfg_monitor;
   Fl_Value_Slider *slider_cfg_monitor_gain;
+  Fl_Value_Input *input_cfg_monitor_latency;
 public:
   Fl_Choice *choice_cfg_left_channel2;
 private:

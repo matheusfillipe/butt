@@ -1426,20 +1426,30 @@ static int snd_monitor_callback(const void *input, void *output, unsigned long f
     float *out = (float *)output;
     unsigned int want = frameCount * cfg.audio.channel * sizeof(float);
 
-    if (monitor_running && (unsigned int)rb_filled(&monitor_rb) >= want) {
-        rb_read_len(&monitor_rb, (char *)out, want);
-        double g = cfg.mixer.monitor_gain;
-        if (g != 1.0) {
-            unsigned int n = frameCount * cfg.audio.channel;
-            for (unsigned int i = 0; i < n; i++) {
-                out[i] *= g;
+    if (monitor_running && want > 0) {
+        // Bound monitor latency: the capture and playback devices run on independent clocks, so
+        // the buffer would otherwise drift toward full (hundreds of ms). Drop any backlog beyond
+        // the configured target so monitoring stays close to real time.
+        unsigned int target = (cfg.mixer.monitor_latency_ms * cfg.audio.samplerate / 1000)
+                              * cfg.audio.channel * sizeof(float);
+        while ((unsigned int)rb_filled(&monitor_rb) > target + want) {
+            rb_read_len(&monitor_rb, (char *)out, want); // discard the oldest chunk
+        }
+
+        if ((unsigned int)rb_filled(&monitor_rb) >= want) {
+            rb_read_len(&monitor_rb, (char *)out, want);
+            double g = cfg.mixer.monitor_gain;
+            if (g != 1.0) {
+                unsigned int n = frameCount * cfg.audio.channel;
+                for (unsigned int i = 0; i < n; i++) {
+                    out[i] *= g;
+                }
             }
+            return paContinue;
         }
     }
-    else {
-        memset(out, 0, want);
-    }
 
+    memset(out, 0, want); // not enough buffered yet -> silence
     return paContinue;
 }
 
@@ -1493,7 +1503,8 @@ void snd_monitor_start(void)
 
     rb_clear(&monitor_rb);
 
-    err = Pa_OpenStream(&monitor_stream, NULL, &op, cfg.audio.samplerate, pa_frames, paClipOff, snd_monitor_callback, NULL);
+    // paFramesPerBufferUnspecified lets the backend pick its lowest-latency buffer size for monitoring
+    err = Pa_OpenStream(&monitor_stream, NULL, &op, cfg.audio.samplerate, paFramesPerBufferUnspecified, paClipOff, snd_monitor_callback, NULL);
     if (err != paNoError) {
         snprintf(info_buf, sizeof(info_buf), _("Could not open monitor device: %s"), Pa_GetErrorText(err));
         print_info(info_buf, 1);
