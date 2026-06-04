@@ -1510,7 +1510,7 @@ this->window_donate_crypto->show();}
       Fl_Input input_add_srv_pwd {
         label {Password:}
         xywh {10 261 295 25} type Secret align 5
-        code0 {this->input_add_srv_pwd->maximum_size(100);}
+        code0 {this->input_add_srv_pwd->maximum_size(8192);}
       }
       Fl_Input input_add_srv_mount {
         label {Icecast mountpoint:}

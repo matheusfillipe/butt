@@ -5564,7 +5564,7 @@ supporting this\nproject.\n\nThank you!"));
     { input_add_srv_pwd = new Fl_Input(10, 261, 295, 25, gettext("Password:"));
       input_add_srv_pwd->type(5);
       input_add_srv_pwd->align(Fl_Align(FL_ALIGN_TOP_LEFT));
-      this->input_add_srv_pwd->maximum_size(100);
+      this->input_add_srv_pwd->maximum_size(8192);
     } // Fl_Input* input_add_srv_pwd
     { input_add_srv_mount = new Fl_Input(10, 311, 215, 25, gettext("Icecast mountpoint:"));
       input_add_srv_mount->align(Fl_Align(FL_ALIGN_TOP_LEFT));
