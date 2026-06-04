@@ -1429,9 +1429,19 @@ static int snd_monitor_callback(const void *input, void *output, unsigned long f
     if (monitor_running && want > 0) {
         // Bound monitor latency: the capture and playback devices run on independent clocks, so
         // the buffer would otherwise drift toward full (hundreds of ms). Drop any backlog beyond
-        // the configured target so monitoring stays close to real time.
+        // the target so monitoring stays close to real time.
         unsigned int target = (cfg.mixer.monitor_latency_ms * cfg.audio.samplerate / 1000)
                               * cfg.audio.channel * sizeof(float);
+
+        // The mixer feeds in buffer_ms-sized bursts, so the buffer must keep at least ~1.5 bursts
+        // of cushion or it underruns between bursts (audible skipping). This is the real latency
+        // floor; lower it by reducing butt's "Buffer (ms)" in Audio settings.
+        unsigned int burst = pa_frames * cfg.audio.channel * sizeof(float);
+        unsigned int floor = burst + burst / 2 + want;
+        if (target < floor) {
+            target = floor;
+        }
+
         while ((unsigned int)rb_filled(&monitor_rb) > target + want) {
             rb_read_len(&monitor_rb, (char *)out, want); // discard the oldest chunk
         }
